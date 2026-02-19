@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ART Stream | All 28 Segments</title>
+    <style>
+        :root {
+            --bg: #000000;
+            --ui: #ffffff;
+            --ui-dim: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--ui);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #player {
+            position: relative;
+            width: 100%;
+            max-width: 1600px;
+            aspect-ratio: 16/9;
+            background: #050505;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Buffer Bar */
+        #buffer-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--ui-dim);
+            z-index: 100;
+        }
+
+        #buffer-fill {
+            height: 100%;
+            background: var(--ui);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Loader */
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 50;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--ui-dim);
+            border-top-color: var(--ui);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Controls */
+        #controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 40px;
+            background: linear-gradient(to top, rgba(0,0,0,0.95), transparent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 60;
+        }
+
+        #player:hover #controls,
+        #player.paused #controls {
+            opacity: 1;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid var(--ui-dim);
+            color: var(--ui);
+            padding: 12px 28px;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            border-color: var(--ui);
+            background: var(--ui);
+            color: var(--bg);
+        }
+
+        /* Status */
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 10px;
+            color: var(--ui-dim);
+            z-index: 70;
+            font-family: 'Courier New', monospace;
+        }
+
+        #status span {
+            color: var(--ui);
+        }
+
+        #segment-dots {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+            width: 200px;
+            justify-content: flex-end;
+            z-index: 70;
+        }
+
+        .seg-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ui-dim);
+            transition: all 0.3s;
+        }
+
+        .seg-dot.loaded {
+            background: var(--ui);
+        }
+
+        .seg-dot.current {
+            background: var(--ui);
+            transform: scale(1.5);
+        }
+
+        /* Hidden Preloaders */
+        .preloader {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            #controls {
+                padding: 20px;
+                flex-direction: column;
+                gap: 20px;
+                align-items: center;
+            }
+            .btn-group {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="player" class="paused">
+    <div id="loader">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="buffer-bar">
+        <div id="buffer-fill"></div>
+    </div>
+
+    <div id="status">
+        SEGMENT: <span id="seg-current">00</span> / 28<br>
+        STATUS: <span id="play-status">READY</span><br>
+        LOADED: <span id="loaded-count">0</span> / 28
+    </div>
+
+    <div id="segment-dots"></div>
+
+    <video id="main-video" playsinline preload="auto"></video>
+
+    <!-- 10 Preloaders for deep buffering -->
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+    <video class="preloader" preload="auto"></video>
+
+    <div id="controls">
+        <div class="btn-group">
+            <button id="btn-play">PLAY</button>
+            <button id="btn-stop">STOP</button>
+            <input type="range" id="vol" min="0" max="1" step="0.05" value="1" 
+                   style="width: 80px; accent-color: white;">
+        </div>
+        <div class="btn-group">
+            <button id="btn-reload">REFRESH BUFFER</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * ART STREAM - ALL 28 SEGMENTS
+ * Loads from: https://raw.githubusercontent.com/marvindomstedt/ART/main/[00-27].webm
+ */
+class ARTStream {
+    constructor() {
+        this.config = {
+            totalSegments: 28,
+            baseRepo: 'https://raw.githubusercontent.com/marvindomstedt/ART/main/',
+            preloadAhead: 5,
+            maxPreloaders: 10
+        };
+
+        this.state = {
+            current: -1,
+            next: 0,
+            isPlaying: false,
+            isBuffering: false,
+            loaded: new Set(),
+            loading: new Set()
+        };
+
+        // DOM
+        this.video = document.getElementById('main-video');
+        this.loader = document.getElementById('loader');
+        this.player = document.getElementById('player');
+        this.bufferFill = document.getElementById('buffer-fill');
+        this.preloaders = Array.from(document.querySelectorAll('.preloader'));
+
+        this.init();
+    }
+
+    init() {
+        this.createSegmentDots();
+        this.setupEvents();
+        this.loadSegment(0);
+    }
+
+    createSegmentDots() {
+        const container = document.getElementById('segment-dots');
+        for (let i = 0; i < this.config.totalSegments; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'seg-dot';
+            dot.id = `dot-${i}`;
+            container.appendChild(dot);
+        }
+    }
+
+    setupEvents() {
+        this.video.addEventListener('loadeddata', () => this.onLoaded());
+        this.video.addEventListener('ended', () => this.playNext());
+        this.video.addEventListener('waiting', () => this.setLoading(true));
+        this.video.addEventListener('playing', () => this.setLoading(false));
+        this.video.addEventListener('timeupdate', () => this.onTimeUpdate());
+        this.video.addEventListener('progress', () => this.updateBuffer());
+
+        document.getElementById('btn-play').onclick = () => this.togglePlay();
+        document.getElementById('btn-stop').onclick = () => this.stop();
+        document.getElementById('btn-reload').onclick = () => this.reloadBuffer();
+        document.getElementById('vol').oninput = (e) => this.video.volume = e.target.value;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                this.togglePlay();
+            }
+        });
+
+        this.player.addEventListener('click', (e) => {
+            if (!e.target.closest('#controls')) this.togglePlay();
+        });
+    }
+
+    getUrl(index) {
+        const padded = index.toString().padStart(2, '0');
+        return `${this.config.baseRepo}${padded}.webm`;
+    }
+
+    loadSegment(index) {
+        if (index >= this.config.totalSegments) {
+            this.onComplete();
+            return;
+        }
+
+        this.state.current = index;
+        const url = this.getUrl(index);
+
+        console.log(`Loading segment ${index}: ${url}`);
+
+        this.state.loading.add(index);
+        this.setLoading(true);
+        this.updateStatus();
+        this.updateDots();
+
+        this.video.src = url;
+        this.video.load();
+
+        // Preload next segments
+        this.preloadAhead();
+
+        if (this.state.isPlaying) {
+            this.video.play().catch(err => {
+                console.log('Play error:', err);
+                this.state.isPlaying = false;
+            });
+        }
+    }
+
+    preloadAhead() {
+        for (let i = 1; i <= this.config.preloadAhead; i++) {
+            const nextIdx = this.state.current + i;
+            if (nextIdx < this.config.totalSegments) {
+                this.preloadSegment(nextIdx);
+            }
+        }
+    }
+
+    preloadSegment(index) {
+        if (this.state.loaded.has(index) || this.state.loading.has(index)) return;
+
+        const url = this.getUrl(index);
+        const preloader = this.preloaders[index % this.config.maxPreloaders];
+
+        this.state.loading.add(index);
+        preloader.src = url;
+        preloader.load();
+
+        preloader.onloadeddata = () => {
+            this.state.loaded.add(index);
+            this.state.loading.delete(index);
+            this.updateStatus();
+            this.updateDots();
+            console.log(`Preloaded segment ${index}`);
+        };
+
+        preloader.onerror = () => {
+            this.state.loading.delete(index);
+            console.error(`Failed to preload segment ${index}`);
+            // Retry once
+            setTimeout(() => this.preloadSegment(index), 2000);
+        };
+    }
+
+    onLoaded() {
+        this.state.loaded.add(this.state.current);
+        this.state.loading.delete(this.state.current);
+        this.setLoading(false);
+        this.updateStatus();
+        this.updateDots();
+        console.log(`Segment ${this.state.current} loaded`);
+
+        if (this.state.isPlaying) {
+            this.video.play();
+        }
+    }
+
+    playNext() {
+        const next = this.state.current + 1;
+        console.log(`Segment ended, playing next: ${next}`);
+        
+        if (next < this.config.totalSegments) {
+            this.loadSegment(next);
+        } else {
+            this.onComplete();
+        }
+    }
+
+    onTimeUpdate() {
+        this.updateBuffer();
+
+        // Start preloading when 50% through
+        if (this.video.duration > 0) {
+            const progress = this.video.currentTime / this.video.duration;
+            if (progress > 0.5) {
+                this.preloadAhead();
+            }
+        }
+    }
+
+    updateBuffer() {
+        if (this.video.buffered.length > 0) {
+            const end = this.video.buffered.end(this.video.buffered.length - 1);
+            const duration = this.video.duration || 1;
+            const percent = Math.min((end / duration) * 100, 100);
+            this.bufferFill.style.width = `${percent}%`;
+        }
+    }
+
+    togglePlay() {
+        if (this.video.paused) {
+            this.video.play();
+            this.state.isPlaying = true;
+            document.getElementById('btn-play').textContent = 'PAUSE';
+            document.getElementById('play-status').textContent = 'PLAYING';
+            this.player.classList.remove('paused');
+        } else {
+            this.video.pause();
+            this.state.isPlaying = false;
+            document.getElementById('btn-play').textContent = 'PLAY';
+            document.getElementById('play-status').textContent = 'PAUSED';
+            this.player.classList.add('paused');
+        }
+    }
+
+    stop() {
+        this.video.pause();
+        this.video.currentTime = 0;
+        this.state.isPlaying = false;
+        document.getElementById('btn-play').textContent = 'PLAY';
+        document.getElementById('play-status').textContent = 'STOPPED';
+        this.player.classList.add('paused');
+        this.loadSegment(0);
+    }
+
+    reloadBuffer() {
+        this.state.loaded.clear();
+        this.state.loading.clear();
+        this.preloadAhead();
+        document.getElementById('play-status').textContent = 'REFRESHING';
+    }
+
+    onComplete() {
+        this.state.isPlaying = false;
+        document.getElementById('btn-play').textContent = 'REPLAY';
+        document.getElementById('play-status').textContent = 'COMPLETE';
+        this.setLoading(false);
+    }
+
+    setLoading(isLoading) {
+        this.state.isBuffering = isLoading;
+        this.loader.style.display = isLoading ? 'block' : 'none';
+        if (!isLoading && this.state.isPlaying) {
+            document.getElementById('play-status').textContent = 'PLAYING';
+        }
+    }
+
+    updateStatus() {
+        document.getElementById('seg-current').textContent = 
+            (this.state.current + 1).toString().padStart(2, '0');
+        document.getElementById('loaded-count').textContent = this.state.loaded.size;
+    }
+
+    updateDots() {
+        for (let i = 0; i < this.config.totalSegments; i++) {
+            const dot = document.getElementById(`dot-${i}`);
+            dot.className = 'seg-dot';
+            if (i === this.state.current) dot.classList.add('current');
+            else if (this.state.loaded.has(i)) dot.classList.add('loaded');
+        }
+    }
+}
+
+// Start
+document.addEventListener('DOMContentLoaded', () => {
+    window.artStream = new ARTStream();
+    console.log('ART Stream initialized - 28 segments ready');
+});
+</script>
+
+</body>
+</html>
