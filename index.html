@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ART Stream | All 28 Segments</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>STADION ART</title>
     <style>
         :root {
             --bg: #000000;
             --ui: #ffffff;
-            --ui-dim: #333333;
+            --ui-dim: #444444;
+            --overlay: rgba(0, 0, 0, 0.7);
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -22,19 +24,31 @@
             color: var(--ui);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             height: 100vh;
+            height: 100dvh;
             display: flex;
             justify-content: center;
             align-items: center;
             overflow: hidden;
+            touch-action: manipulation;
         }
 
         #player {
             position: relative;
             width: 100%;
-            max-width: 1600px;
-            aspect-ratio: 16/9;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
             background: #050505;
             overflow: hidden;
+        }
+
+        #player.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000;
         }
 
         video {
@@ -44,117 +58,163 @@
             display: block;
         }
 
-        /* Buffer Bar */
-        #buffer-bar {
+        /* Top Bar - Minimal Info */
+        #top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #player.show-ui #top-bar {
+            opacity: 1;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: var(--ui);
+            font-family: 'Courier New', monospace;
+        }
+
+        .info-text span {
+            color: var(--ui-dim);
+        }
+
+        /* Bottom Controls */
+        #controls {
             position: absolute;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 3px;
-            background: var(--ui-dim);
-            z-index: 100;
+            padding: 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.95), transparent);
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
-        #buffer-fill {
+        #player.show-ui #controls {
+            opacity: 1;
+        }
+
+        /* Progress Bar */
+        #progress-container {
+            width: 100%;
+            height: 4px;
+            background: var(--ui-dim);
+            margin-bottom: 15px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        #progress-fill {
             height: 100%;
             background: var(--ui);
             width: 0%;
             transition: width 0.1s linear;
         }
 
-        /* Loader */
-        #loader {
+        #buffer-fill {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            display: none;
-            z-index: 50;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid var(--ui-dim);
-            border-top-color: var(--ui);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            100% { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-
-        /* Controls */
-        #controls {
-            position: absolute;
-            bottom: 0;
+            top: 0;
             left: 0;
-            width: 100%;
-            padding: 40px;
-            background: linear-gradient(to top, rgba(0,0,0,0.95), transparent);
+            height: 100%;
+            background: rgba(255,255,255,0.3);
+            width: 0%;
+            z-index: 1;
+        }
+
+        /* Control Buttons */
+        .control-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            z-index: 60;
-        }
-
-        #player:hover #controls,
-        #player.paused #controls {
-            opacity: 1;
-        }
-
-        .btn-group {
-            display: flex;
             gap: 15px;
-            align-items: center;
         }
 
-        button {
+        .control-left, .control-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
             background: transparent;
             border: 1px solid var(--ui-dim);
             color: var(--ui);
-            padding: 12px 28px;
+            padding: 10px 16px;
             font-size: 11px;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
             text-transform: uppercase;
             cursor: pointer;
             transition: all 0.2s;
+            border-radius: 4px;
+            min-width: 50px;
         }
 
-        button:hover {
-            border-color: var(--ui);
+        .btn:active {
             background: var(--ui);
             color: var(--bg);
         }
 
-        /* Status */
-        #status {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 10px;
-            color: var(--ui-dim);
-            z-index: 70;
-            font-family: 'Courier New', monospace;
+        .btn-icon {
+            padding: 10px;
+            min-width: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        #status span {
-            color: var(--ui);
+        /* Volume Slider */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 80px;
+            height: 3px;
+            background: var(--ui-dim);
+            outline: none;
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--ui);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        /* Segment Dots */
         #segment-dots {
             position: absolute;
-            top: 20px;
+            top: 60px;
             right: 20px;
             display: flex;
-            gap: 3px;
-            flex-wrap: wrap;
-            width: 200px;
-            justify-content: flex-end;
-            z-index: 70;
+            flex-direction: column;
+            gap: 2px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 40;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #player.show-ui #segment-dots {
+            opacity: 1;
         }
 
         .seg-dot {
@@ -174,48 +234,143 @@
             transform: scale(1.5);
         }
 
+        /* Loader */
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 30;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--ui-dim);
+            border-top-color: var(--ui);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Play Overlay (big button for mobile) */
+        #play-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid var(--ui);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            cursor: pointer;
+        }
+
+        #play-overlay.visible {
+            display: flex;
+        }
+
+        #play-overlay::before {
+            content: '▶';
+            font-size: 30px;
+            color: var(--ui);
+            margin-left: 4px;
+        }
+
+        #player.playing #play-overlay {
+            display: none;
+        }
+
         /* Hidden Preloaders */
         .preloader {
             display: none !important;
         }
 
+        /* Mobile Optimizations */
         @media (max-width: 768px) {
-            #controls {
-                padding: 20px;
-                flex-direction: column;
-                gap: 20px;
-                align-items: center;
+            .info-text {
+                font-size: 11px;
             }
-            .btn-group {
-                width: 100%;
-                justify-content: center;
-                flex-wrap: wrap;
+
+            .btn {
+                padding: 12px 18px;
+                font-size: 12px;
+            }
+
+            .volume-control {
+                display: none; /* Hide volume on mobile, use system volume */
+            }
+
+            #segment-dots {
+                top: auto;
+                bottom: 100px;
+                right: 10px;
+                max-height: 150px;
+            }
+
+            #controls {
+                padding: 15px;
+            }
+
+            #progress-container {
+                height: 5px;
+                margin-bottom: 12px;
+            }
+        }
+
+        /* Landscape mode */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #top-bar {
+                display: none;
+            }
+            
+            #segment-dots {
+                display: none;
+            }
+
+            .control-row {
+                flex-wrap: nowrap;
+            }
+
+            .btn {
+                padding: 8px 14px;
+                font-size: 10px;
             }
         }
     </style>
 </head>
 <body>
 
-<div id="player" class="paused">
+<div id="player" class="show-ui">
     <div id="loader">
         <div class="spinner"></div>
     </div>
 
-    <div id="buffer-bar">
-        <div id="buffer-fill"></div>
-    </div>
+    <div id="play-overlay"></div>
 
-    <div id="status">
-        SEGMENT: <span id="seg-current">00</span> / 28<br>
-        STATUS: <span id="play-status">READY</span><br>
-        LOADED: <span id="loaded-count">0</span> / 28
+    <div id="top-bar">
+        <div class="info-text">
+            SEG <span id="seg-current">00</span> / 28
+        </div>
+        <div class="info-text">
+            <span id="buffer-status">0%</span> BUFFER
+        </div>
     </div>
 
     <div id="segment-dots"></div>
 
-    <video id="main-video" playsinline preload="auto"></video>
+    <video id="main-video" playsinline preload="auto" webkit-playsinline></video>
 
-    <!-- 10 Preloaders for deep buffering -->
+    <!-- 10 Preloaders -->
     <video class="preloader" preload="auto"></video>
     <video class="preloader" preload="auto"></video>
     <video class="preloader" preload="auto"></video>
@@ -228,22 +383,32 @@
     <video class="preloader" preload="auto"></video>
 
     <div id="controls">
-        <div class="btn-group">
-            <button id="btn-play">PLAY</button>
-            <button id="btn-stop">STOP</button>
-            <input type="range" id="vol" min="0" max="1" step="0.05" value="1" 
-                   style="width: 80px; accent-color: white;">
+        <div id="progress-container">
+            <div id="buffer-fill"></div>
+            <div id="progress-fill"></div>
         </div>
-        <div class="btn-group">
-            <button id="btn-reload">REFRESH BUFFER</button>
+
+        <div class="control-row">
+            <div class="control-left">
+                <button class="btn btn-icon" id="btn-play">▶</button>
+                <button class="btn btn-icon" id="btn-stop">⏹</button>
+                <div class="volume-control">
+                    <span style="font-size: 11px;">🔊</span>
+                    <input type="range" id="vol" min="0" max="1" step="0.05" value="1">
+                </div>
+            </div>
+
+            <div class="control-right">
+                <button class="btn" id="btn-fullscreen">⛶</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
 /**
- * ART STREAM - ALL 28 SEGMENTS
- * Loads from: https://raw.githubusercontent.com/marvindomstedt/ART/main/[00-27].webm
+ * ART STREAM - MOBILE OPTIMIZED
+ * Full 28 segments with deep buffering
  */
 class ARTStream {
     constructor() {
@@ -251,22 +416,25 @@ class ARTStream {
             totalSegments: 28,
             baseRepo: 'https://raw.githubusercontent.com/marvindomstedt/ART/main/',
             preloadAhead: 5,
-            maxPreloaders: 10
+            maxPreloaders: 10,
+            uiTimeout: 3000
         };
 
         this.state = {
             current: -1,
-            next: 0,
             isPlaying: false,
             isBuffering: false,
             loaded: new Set(),
-            loading: new Set()
+            loading: new Set(),
+            uiTimer: null
         };
 
         // DOM
+        this.player = document.getElementById('player');
         this.video = document.getElementById('main-video');
         this.loader = document.getElementById('loader');
-        this.player = document.getElementById('player');
+        this.playOverlay = document.getElementById('play-overlay');
+        this.progressFill = document.getElementById('progress-fill');
         this.bufferFill = document.getElementById('buffer-fill');
         this.preloaders = Array.from(document.querySelectorAll('.preloader'));
 
@@ -276,7 +444,9 @@ class ARTStream {
     init() {
         this.createSegmentDots();
         this.setupEvents();
+        this.setupTouchControls();
         this.loadSegment(0);
+        this.showUI();
     }
 
     createSegmentDots() {
@@ -290,28 +460,106 @@ class ARTStream {
     }
 
     setupEvents() {
+        // Video Events
         this.video.addEventListener('loadeddata', () => this.onLoaded());
         this.video.addEventListener('ended', () => this.playNext());
         this.video.addEventListener('waiting', () => this.setLoading(true));
-        this.video.addEventListener('playing', () => this.setLoading(false));
+        this.video.addEventListener('playing', () => {
+            this.setLoading(false);
+            this.player.classList.add('playing');
+        });
+        this.video.addEventListener('pause', () => {
+            this.player.classList.remove('playing');
+        });
         this.video.addEventListener('timeupdate', () => this.onTimeUpdate());
         this.video.addEventListener('progress', () => this.updateBuffer());
+        this.video.addEventListener('error', (e) => this.onError(e));
 
-        document.getElementById('btn-play').onclick = () => this.togglePlay();
-        document.getElementById('btn-stop').onclick = () => this.stop();
-        document.getElementById('btn-reload').onclick = () => this.reloadBuffer();
-        document.getElementById('vol').oninput = (e) => this.video.volume = e.target.value;
+        // Controls
+        document.getElementById('btn-play').onclick = (e) => {
+            e.stopPropagation();
+            this.togglePlay();
+        };
+        
+        document.getElementById('btn-stop').onclick = (e) => {
+            e.stopPropagation();
+            this.stop();
+        };
+        
+        document.getElementById('btn-fullscreen').onclick = (e) => {
+            e.stopPropagation();
+            this.toggleFullscreen();
+        };
+        
+        document.getElementById('vol').oninput = (e) => {
+            e.stopPropagation();
+            this.video.volume = e.target.value;
+        };
 
+        // Progress bar seek
+        document.getElementById('progress-container').onclick = (e) => {
+            e.stopPropagation();
+            this.seek(e);
+        };
+
+        // Keyboard
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault();
                 this.togglePlay();
             }
+            if (e.code === 'KeyF') {
+                this.toggleFullscreen();
+            }
         });
+    }
+
+    setupTouchControls() {
+        let lastTap = 0;
 
         this.player.addEventListener('click', (e) => {
-            if (!e.target.closest('#controls')) this.togglePlay();
+            // Double tap for fullscreen on mobile
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            
+            if (tapLength < 300 && tapLength > 0) {
+                this.toggleFullscreen();
+                e.preventDefault();
+            } else {
+                this.toggleUI();
+            }
+            
+            lastTap = currentTime;
         });
+
+        this.playOverlay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePlay();
+        });
+    }
+
+    toggleUI() {
+        this.player.classList.toggle('show-ui');
+        
+        // Auto-hide UI after timeout
+        clearTimeout(this.state.uiTimer);
+        if (this.player.classList.contains('show-ui')) {
+            this.state.uiTimer = setTimeout(() => {
+                if (this.state.isPlaying) {
+                    this.player.classList.remove('show-ui');
+                }
+            }, this.config.uiTimeout);
+        }
+    }
+
+    showUI() {
+        this.player.classList.add('show-ui');
+        clearTimeout(this.state.uiTimer);
+        this.state.uiTimer = setTimeout(() => {
+            if (this.state.isPlaying) {
+                this.player.classList.remove('show-ui');
+            }
+        }, this.config.uiTimeout);
     }
 
     getUrl(index) {
@@ -328,7 +576,7 @@ class ARTStream {
         this.state.current = index;
         const url = this.getUrl(index);
 
-        console.log(`Loading segment ${index}: ${url}`);
+        console.log(`Loading: ${url}`);
 
         this.state.loading.add(index);
         this.setLoading(true);
@@ -338,13 +586,13 @@ class ARTStream {
         this.video.src = url;
         this.video.load();
 
-        // Preload next segments
         this.preloadAhead();
 
         if (this.state.isPlaying) {
             this.video.play().catch(err => {
                 console.log('Play error:', err);
                 this.state.isPlaying = false;
+                this.player.classList.remove('playing');
             });
         }
     }
@@ -373,13 +621,10 @@ class ARTStream {
             this.state.loading.delete(index);
             this.updateStatus();
             this.updateDots();
-            console.log(`Preloaded segment ${index}`);
         };
 
         preloader.onerror = () => {
             this.state.loading.delete(index);
-            console.error(`Failed to preload segment ${index}`);
-            // Retry once
             setTimeout(() => this.preloadSegment(index), 2000);
         };
     }
@@ -390,7 +635,6 @@ class ARTStream {
         this.setLoading(false);
         this.updateStatus();
         this.updateDots();
-        console.log(`Segment ${this.state.current} loaded`);
 
         if (this.state.isPlaying) {
             this.video.play();
@@ -399,8 +643,6 @@ class ARTStream {
 
     playNext() {
         const next = this.state.current + 1;
-        console.log(`Segment ended, playing next: ${next}`);
-        
         if (next < this.config.totalSegments) {
             this.loadSegment(next);
         } else {
@@ -409,14 +651,21 @@ class ARTStream {
     }
 
     onTimeUpdate() {
+        this.updateProgress();
         this.updateBuffer();
 
-        // Start preloading when 50% through
         if (this.video.duration > 0) {
             const progress = this.video.currentTime / this.video.duration;
             if (progress > 0.5) {
                 this.preloadAhead();
             }
+        }
+    }
+
+    updateProgress() {
+        if (this.video.duration > 0) {
+            const percent = (this.video.currentTime / this.video.duration) * 100;
+            this.progressFill.style.width = `${percent}%`;
         }
     }
 
@@ -426,6 +675,15 @@ class ARTStream {
             const duration = this.video.duration || 1;
             const percent = Math.min((end / duration) * 100, 100);
             this.bufferFill.style.width = `${percent}%`;
+            document.getElementById('buffer-status').textContent = `${Math.round(percent)}%`;
+        }
+    }
+
+    seek(e) {
+        const rect = e.target.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        if (this.video.duration > 0) {
+            this.video.currentTime = pos * this.video.duration;
         }
     }
 
@@ -433,15 +691,15 @@ class ARTStream {
         if (this.video.paused) {
             this.video.play();
             this.state.isPlaying = true;
-            document.getElementById('btn-play').textContent = 'PAUSE';
-            document.getElementById('play-status').textContent = 'PLAYING';
-            this.player.classList.remove('paused');
+            document.getElementById('btn-play').textContent = '⏸';
+            this.player.classList.add('playing');
+            this.showUI();
         } else {
             this.video.pause();
             this.state.isPlaying = false;
-            document.getElementById('btn-play').textContent = 'PLAY';
-            document.getElementById('play-status').textContent = 'PAUSED';
-            this.player.classList.add('paused');
+            document.getElementById('btn-play').textContent = '▶';
+            this.player.classList.remove('playing');
+            this.showUI();
         }
     }
 
@@ -449,38 +707,59 @@ class ARTStream {
         this.video.pause();
         this.video.currentTime = 0;
         this.state.isPlaying = false;
-        document.getElementById('btn-play').textContent = 'PLAY';
-        document.getElementById('play-status').textContent = 'STOPPED';
-        this.player.classList.add('paused');
+        document.getElementById('btn-play').textContent = '▶';
+        this.player.classList.remove('playing');
         this.loadSegment(0);
+        this.showUI();
     }
 
-    reloadBuffer() {
-        this.state.loaded.clear();
-        this.state.loading.clear();
-        this.preloadAhead();
-        document.getElementById('play-status').textContent = 'REFRESHING';
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            if (this.player.requestFullscreen) {
+                this.player.requestFullscreen();
+            } else if (this.player.webkitRequestFullscreen) {
+                this.player.webkitRequestFullscreen();
+            } else if (this.video.webkitEnterFullscreen) {
+                this.video.webkitEnterFullscreen();
+            }
+            this.player.classList.add('fullscreen');
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+            this.player.classList.remove('fullscreen');
+        }
+        this.showUI();
     }
 
     onComplete() {
         this.state.isPlaying = false;
-        document.getElementById('btn-play').textContent = 'REPLAY';
-        document.getElementById('play-status').textContent = 'COMPLETE';
+        document.getElementById('btn-play').textContent = '↺';
+        this.player.classList.remove('playing');
         this.setLoading(false);
+        this.showUI();
+    }
+
+    onError(e) {
+        console.error('Video error:', e);
+        this.setLoading(false);
+        setTimeout(() => {
+            this.video.load();
+            if (this.state.isPlaying) this.video.play();
+        }, 2000);
     }
 
     setLoading(isLoading) {
         this.state.isBuffering = isLoading;
         this.loader.style.display = isLoading ? 'block' : 'none';
-        if (!isLoading && this.state.isPlaying) {
-            document.getElementById('play-status').textContent = 'PLAYING';
-        }
+        this.playOverlay.classList.toggle('visible', !isLoading && !this.state.isPlaying);
     }
 
     updateStatus() {
         document.getElementById('seg-current').textContent = 
             (this.state.current + 1).toString().padStart(2, '0');
-        document.getElementById('loaded-count').textContent = this.state.loaded.size;
     }
 
     updateDots() {
@@ -493,10 +772,9 @@ class ARTStream {
     }
 }
 
-// Start
+// Initialize
 document.addEventListener('DOMContentLoaded', () => {
     window.artStream = new ARTStream();
-    console.log('ART Stream initialized - 28 segments ready');
 });
 </script>
 
